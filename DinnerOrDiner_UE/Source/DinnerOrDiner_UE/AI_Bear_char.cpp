@@ -4,15 +4,15 @@
 #include "AI_Bear_char.h"
 #include "Components/CapsuleComponent.h"
 #include "Bear_AIController.h"
-#include "BehaviorTree/BehaviorTree.h"
-#include "Perception/PawnSensingComponent.h"
+#include <Kismet/GameplayStatics.h>
+
 
 // Sets default values
 AAI_Bear_char::AAI_Bear_char()
 {
- 	//init senses
-	PawnSenseComp = CreateDefaultSubobject<UPawnSensingComponent>(TEXT("PawnSensingComp"));
-	PawnSenseComp->SetPeripheralVisionAngle(90.0f);
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	PrimaryActorTick.bCanEverTick = true;
+
 
 }
 
@@ -21,10 +21,14 @@ void AAI_Bear_char::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (PawnSenseComp)
-	{
-		PawnSenseComp->OnSeePawn.AddDynamic(this, &AAI_Bear_char::OnPlayerCaught);
-	}
+	//init senses and other vars
+	AI_SeeRadius = 1500.0f;
+	AI_PawnSpotRadius = 500.0f;
+	AI_speed = 200.0f;
+	AI_velocity = FVector(0.0f, 0.0f, 0.0f);
+	AI_position = GetActorLocation();
+	c_player = Cast<ADinnerOrDiner_UECharacter>(
+					UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));// get ref to the player
 	
 }
 
@@ -32,6 +36,23 @@ void AAI_Bear_char::BeginPlay()
 void AAI_Bear_char::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	FVector Vecdistance = GetActorLocation() - c_player->GetActorLocation();
+	float distance = Vecdistance.Size();
+	if (distance <= AI_PawnSpotRadius)
+	{
+		SeekPlayer(DeltaTime);
+		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("Chasing Player"));
+	}
+	else if (distance <= AI_SeeRadius)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("I think I see Something?"));
+	}
+	else if (distance > AI_PawnSpotRadius)
+	{
+		StopSeeking();
+		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Red, TEXT("Waiting For EIS"));
+	}
 
 }
 
@@ -42,16 +63,32 @@ void AAI_Bear_char::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 }
 
-void AAI_Bear_char::OnPlayerCaught(APawn* Pawn)
+void AAI_Bear_char::SeekPlayer(float time)
 {
-	//get ref to player controller
-	ABear_AIController* AIController = Cast<ABear_AIController>(GetController());
+	AI_velocity = c_player->GetActorLocation() - GetActorLocation();
+	AI_velocity.Normalize();
+	AI_velocity *= AI_speed;
+	AI_position += AI_velocity * time;
+	SetActorLocation(AI_position);
 
-	if (AIController)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, TEXT("You've been caught!"));
-		AIController->SetPlayerCaught(Pawn);
-	}
+	
 
 }
+
+void AAI_Bear_char::SeekTargetPosition(float time, AActor* targetActor_)
+{
+	AI_velocity = targetActor_->GetActorLocation() - GetActorLocation();
+	AI_velocity.Normalize();
+	AI_velocity *= AI_speed;
+	AI_position += AI_velocity * time;
+	SetActorLocation(AI_position);
+}
+
+void AAI_Bear_char::StopSeeking()
+{
+	AI_velocity = FVector();
+}
+
+
+
 
