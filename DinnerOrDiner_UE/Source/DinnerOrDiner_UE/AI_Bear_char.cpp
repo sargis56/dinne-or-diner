@@ -5,6 +5,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Bear_AIController.h"
 #include <Kismet/GameplayStatics.h>
+#include "Engine.h"
 
 
 // Sets default values
@@ -54,6 +55,8 @@ void AAI_Bear_char::Tick(float DeltaTime)
 		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Red, TEXT("Waiting For EIS"));
 	}
 
+	PerformRaycast();
+
 }
 
 // Called to bind functionality to input
@@ -87,6 +90,26 @@ void AAI_Bear_char::SeekTargetPosition(float time, AActor* targetActor_)
 void AAI_Bear_char::StopSeeking()
 {
 	AI_velocity = FVector();
+}
+
+void AAI_Bear_char::PerformRaycast()
+{
+	FHitResult* HitResult = new FHitResult();
+	FVector StartTrace = GetMesh()->GetComponentLocation() + FVector(0.0f, 0.0f, 100.0f);// 100.0 is the offset in the Z because unreal uses the Z axis as up/down instead of Y... why..?
+	FVector ForwardVector = GetCapsuleComponent()->GetForwardVector();
+	FVector EndTrace = ((ForwardVector * 200.0f) + StartTrace);// since we add the StartTrace to the EndTrace we don't need to add an offset unless you want the line to be on angle
+	FCollisionQueryParams* TraceParams = new FCollisionQueryParams();
+
+	
+
+	if (GetWorld()->LineTraceSingleByChannel(*HitResult, StartTrace, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(255, 0, 0), true);
+		//GetWorld()->DebugDrawTraceTag;
+
+		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("You hit: %s"), *HitResult->GetActor()->GetName()));
+	}
+
 }
 
 

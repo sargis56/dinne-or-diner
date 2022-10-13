@@ -36,6 +36,7 @@ public:
 	void SeekPlayer(float time);
 	void SeekTargetPosition(float time, AActor* targetActor_);
 	void StopSeeking();
+	void PerformRaycast();
 
 	// other states the AI may execute
 	/*
