@@ -38,6 +38,8 @@ public:
 	void StopSeeking();
 	void PerformRaycast();
 
+	void RotateTowards(FVector ActorLocation_);
+
 	// other states the AI may execute
 	/*
 	rtrn_type AIAttackPawn(AActor* Pawn_); this can also be used for other actors since APawn inherits from AActor
@@ -46,6 +48,12 @@ public:
 	rtrn_type AIAttack();
 	rtrn_type AIStopAttack(); this may or may not be needed, depends on if we use something like states
 	*/
+
+	bool isColliding = false;
+	bool isSeeking = false;
+
+	UPawnMovementComponent* AI_MovementComponent;
+	virtual UPawnMovementComponent* GetMovementComponent() const override;
 
 	UPROPERTY(EditDefaultsOnly, Category = "AI | Senses")
 		float AI_SeeRadius = 1500.0f;
