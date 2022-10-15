@@ -33,8 +33,9 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	void SeekPlayer(float time);
-	void SeekTargetPosition(float time, AActor* targetActor_);
+	void SeekActor(float time, AActor* targetActor_);
+	void SeekPosition(float time);
+
 	void StopSeeking();
 	void PerformRaycast();
 
@@ -51,6 +52,7 @@ public:
 
 	bool isColliding = false;
 	bool isSeeking = false;
+	FHitResult* CollidedActor;
 
 	UPawnMovementComponent* AI_MovementComponent;
 	virtual UPawnMovementComponent* GetMovementComponent() const override;
@@ -69,6 +71,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "AI | Extras")
 		float AI_speed;										// this can be used to set a vector...maybe
+
+	UPROPERTY(EditAnywhere, Category = "Debug")
+		bool debugArrow = false;
 
 private:
 	

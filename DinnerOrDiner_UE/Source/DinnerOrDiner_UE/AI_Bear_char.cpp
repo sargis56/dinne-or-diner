@@ -27,13 +27,13 @@ void AAI_Bear_char::BeginPlay()
 	//init senses and other vars
 	AI_SeeRadius =			1500.0f;
 	AI_PawnSpotRadius =		500.0f;
-	AI_speed =				200.0f;
+	AI_speed =				350.0f;
 	AI_velocity =			FVector(0.0f, 0.0f, 0.0f);
 	AI_position =			GetActorLocation();
 	c_player =				Cast<ADinnerOrDiner_UECharacter>(
 								 UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));// get ref to the player
 
-	
+	CollidedActor = new FHitResult();
 	
 	
 	
@@ -50,32 +50,25 @@ void AAI_Bear_char::Tick(float DeltaTime)
 	float distance = Vecdistance.Size();
 	if (distance <= AI_PawnSpotRadius)
 	{
-		isSeeking = true;
-		
-		if (isColliding)
+		//isSeeking = true;
+		if (isColliding && !isSeeking)
 		{
-			
-			//StopSeeking();
-			
-			AI_velocity = c_player->GetActorLocation() - GetActorLocation();
-			AI_velocity.Normalize();
-			AI_velocity *= AI_speed;
-			AI_position -= AI_velocity * DeltaTime;
-			SetActorLocation(AI_position);
-		}
-		else
-		{
-			SeekPlayer(DeltaTime);
+			SeekPosition(DeltaTime);
+			isSeeking = false;
 		}
 
+		if(isSeeking)
+		{
+			SeekActor(DeltaTime, c_player);
+		}
 		
 		
-		
+
 		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("Chasing Player"));
 	}
 	else if (distance <= AI_SeeRadius)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("I think I see Something?"));
+		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Yellow, TEXT("I think I see Something?"));
 	}
 	else if (distance > AI_PawnSpotRadius)
 	{
@@ -97,37 +90,54 @@ void AAI_Bear_char::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 }
 
-void AAI_Bear_char::SeekPlayer(float time)
+void AAI_Bear_char::SeekPosition(float time)
 {
+	//Get normal from where Raycast touches actor, get distance along normal, make that point the new target for the seek
+	//if the actor is phasing through obstacle, might need to adjust raycast length
+	FVector normal = CollidedActor->Normal;
+	FVector location = CollidedActor->Location;
+	FVector s_trace = CollidedActor->TraceStart;
+	FVector e_trace = CollidedActor->TraceEnd;
+	FVector LineEnd;
 
-	
-	
-		
-	RotateTowards(c_player->GetActorLocation());
+	FVector UnitVector = s_trace - e_trace;//direction
+	UnitVector.Normalize();
 
-	// AI movement
-	AI_velocity = c_player->GetActorLocation() - GetActorLocation();
-	AI_velocity.Normalize();
-	AI_velocity *= AI_speed;
-	AI_position += AI_velocity * time;
-	
+	FVector mir_normal = normal.MirrorByVector(UnitVector);// get the mirrored vector from the normal
+	mir_normal *= 96.0f;// length of arrow
+
+	LineEnd = location + mir_normal;// calculate the end my adding the start of the line which is the hit location + the length of the arrow
+
+
+	if(debugArrow)// is editable anywhere, a bool in the details panel under "Debug"
+		DrawDebugDirectionalArrow(GetWorld(), location, LineEnd, 30.0f, FColor(0, 50, 100), false, 5.0f, (uint8)0U, 10.0f);
+
+	RotateTowards(location + (mir_normal * 46.0f));
+	//AddActorLocalRotation(FQuat(FVector3d(0, 0, 1), double(25)));
+
+	AI_velocity = ( location + (mir_normal * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.75f)) ) - GetActorLocation();// direction
+	AI_velocity.Normalize();// normalize it to prevent max clipping
+	AI_velocity *= AI_speed;// apply the speed to it so the AI moves relative to the set speed
+	AI_velocity.Z = 0;
+	AI_position += AI_velocity * time;// update the AIs position with the velocity and time
+
 	SetActorLocation(AI_position);
-
-	
-
 }
 
-void AAI_Bear_char::SeekTargetPosition(float time, AActor* targetActor_)
+void AAI_Bear_char::SeekActor(float time, AActor* targetActor_)
 {
-	
-
+		
 	RotateTowards(targetActor_->GetActorLocation());
-	AI_velocity = targetActor_->GetActorLocation() - GetActorLocation();
-	AI_velocity.Normalize();
-	AI_velocity *= AI_speed;
-	AI_position += AI_velocity * time;
-	SetActorLocation(AI_position);
-	
+
+	// AI movement
+	AI_velocity = targetActor_->GetActorLocation() - GetActorLocation();// direction
+	AI_velocity.Normalize();// normalize it to prevent max clipping
+	AI_velocity *= AI_speed;// apply the speed to it so the AI moves relative to the set speed
+	AI_position += AI_velocity * time;// update the AIs position with the velocity and time
+
+	SetActorLocation(AI_position);// set the current position to the new position
+
+
 }
 
 void AAI_Bear_char::StopSeeking()
@@ -139,27 +149,69 @@ void AAI_Bear_char::StopSeeking()
 
 void AAI_Bear_char::PerformRaycast()
 {
-	FHitResult* HitResult = new FHitResult();
+	
 	FVector StartTrace = GetMesh()->GetComponentLocation() + FVector(0.0f, 0.0f, 100.0f);// 100.0 is the offset in the Z because unreal uses the Z axis as up/down instead of Y... why..?
-	FVector ForwardVector = GetCapsuleComponent()->GetForwardVector();
-	FVector EndTrace = ((ForwardVector * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.55f)) + StartTrace);// since we add the StartTrace to the EndTrace we don't need to add an offset unless you want the line to be on angle
+	FVector ForwardVector = GetCapsuleComponent()->GetForwardVector();// length
+	FVector EndTrace = ((ForwardVector * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.75f)) + StartTrace);// since we add the StartTrace to the EndTrace we don't need to add an offset unless you want the line to be on angle
 	FCollisionQueryParams* TraceParams = new FCollisionQueryParams();
 
 	
 
-	if (GetWorld()->LineTraceSingleByChannel(*HitResult, StartTrace, EndTrace, ECC_Visibility, *TraceParams))//ECC_Visibility
+	if (GetWorld()->LineTraceSingleByChannel(*CollidedActor, StartTrace, EndTrace, ECC_Visibility, *TraceParams))//ECC_Visibility
 	{
 		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(255, 0, 0), false, 5.0f);
-		//GetWorld()->DebugDrawTraceTag;
-
-		GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("You hit: %s"), *HitResult->GetActor()->GetName()));
+	
+		//GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, FString::Printf(TEXT("You hit: %s"), *CollidedActor->GetActor()->GetName()));
 		
+		//get rid of isColliding bool? maybe I still need it
 		isColliding = true;
+		isSeeking = false;
+		
 	}
 	else
 	{
 		isColliding = false;
+		isSeeking = true;
 	}
+
+		
+	EndTrace = ((ForwardVector * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.75f)) + (StartTrace + FVector(10.0f, 10.0, 0.0f)));
+	
+	//right
+	if (GetWorld()->LineTraceSingleByChannel(*CollidedActor, StartTrace, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(0, 255, 0), false, 5.0f);
+		isColliding = true;
+		isSeeking = false;
+	}
+	else
+	{
+		isColliding = false;
+		isSeeking = true;
+	}
+
+	EndTrace = ((ForwardVector * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.75f)) + (StartTrace + FVector(-10.0f, -10.0, 0.0f)));
+	//left
+	if (GetWorld()->LineTraceSingleByChannel(*CollidedActor, StartTrace, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(0, 255, 0), false, 5.0f);
+		isColliding = true;
+		isSeeking = false;
+	}
+	else
+	{
+		isColliding = false;
+		isSeeking = true;
+	}
+	
+
+	//ground line trace
+	/*EndTrace = ((ForwardVector * (GetCapsuleComponent()->GetScaledCapsuleRadius() * 2.0f)) + StartTrace) - FVector(0.0f, 0.0f, 260.0f);
+	if (GetWorld()->LineTraceSingleByChannel(*CollidedActor, StartTrace, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(255, 0, 0), false, 5.0f);
+		
+	}*/
 
 }
 
