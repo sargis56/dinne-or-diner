@@ -13,11 +13,7 @@ class DINNERORDINER_UE_API ADinnerOrDiner_NavGrid : public AActor
 
 		
 
-	UPROPERTY(EditDefaultsOnly, Category = "Debug Box | Colors")
-		FColor GridBoxColor = {255, 100, 0};
 
-	UPROPERTY(EditDefaultsOnly, Category = "Debug Box | Colors")
-		FColor BottomLeftColor = { 255, 100, 0 };
 		
 	
 public:	
@@ -36,23 +32,29 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	UPROPERTY()
-		FVector GridLocation;
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite)
+		FVector GridLocation { 0.0f, 0.0f, 0.1f };
 	
-	UPROPERTY()
-		FVector2D GridSizeWorld;
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite)
+		FVector2D GridSizeWorld = FVector2D(500.0f, 500.0f);
 
-	UPROPERTY()
-		float TileSize;
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite)
+		float TileSize = 50.0f;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 		TObjectPtr<USceneComponent> Scene;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 		TObjectPtr<UBillboardComponent> Billboard;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-		TObjectPtr<AActor> Actor;
+		TObjectPtr<UBrushComponent> Brush;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Debug Box | Colors")
+		FColor GridBoxColor = { 255, 100, 0 };
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Debug Box | Colors")
+		FColor BottomLeftColor = { 255, 0, 0 };
 
 	UFUNCTION(BlueprintCallable)
 		FVector GridBottomLeft();
@@ -62,5 +64,10 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 		void DrawTile();
+
+	UFUNCTION(BlueprintCallable)
+		void DrawShape();
+
+	
 
 };
