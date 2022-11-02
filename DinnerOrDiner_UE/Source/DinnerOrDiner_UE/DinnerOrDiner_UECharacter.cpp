@@ -7,6 +7,9 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Net/UnrealNetwork.h"
+#include "Engine/Engine.h"
+#include "ActorDamger.h"
 
 //////////////////////////////////////////////////////////////////////////
 // ADinnerOrDiner_UECharacter
@@ -23,7 +26,6 @@ ADinnerOrDiner_UECharacter::ADinnerOrDiner_UECharacter()
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
-
 	// Configure character movement
 	GetCharacterMovement()->bOrientRotationToMovement = true; // Character moves in the direction of input...	
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 500.0f, 0.0f); // ...at this rotation rate
@@ -49,7 +51,34 @@ ADinnerOrDiner_UECharacter::ADinnerOrDiner_UECharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	//Initialize the player's health values
+	MaxHealth = 100.0f;
+	CurrentHealth = MaxHealth;
+
+	//Set whether to enable debug options
+	Debug = false;
+
+	//Initialize projectile class
+	ProjectileClass = AActorDamger::StaticClass();
+	//Initialize fire rate
+	FireRate = 0.25f;
+	bIsFiringWeapon = false;
 }
+
+void ADinnerOrDiner_UECharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	
+	if (Debug == true)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Blue, FString::Printf(TEXT("Current Actor: %s"),*GetFName().ToString()));
+		//Displays the health of the actor
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("Current Actor's Health: %f"), CurrentHealth));
+	}
+	
+}
+
 
 //////////////////////////////////////////////////////////////////////////
 // Input
@@ -75,6 +104,7 @@ void ADinnerOrDiner_UECharacter::SetupPlayerInputComponent(class UInputComponent
 	// handle touch devices
 	PlayerInputComponent->BindTouch(IE_Pressed, this, &ADinnerOrDiner_UECharacter::TouchStarted);
 	PlayerInputComponent->BindTouch(IE_Released, this, &ADinnerOrDiner_UECharacter::TouchStopped);
+	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ADinnerOrDiner_UECharacter::StartFire);
 }
 
 void ADinnerOrDiner_UECharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
@@ -126,4 +156,83 @@ void ADinnerOrDiner_UECharacter::MoveRight(float Value)
 		// add movement in that direction
 		AddMovementInput(Direction, Value);
 	}
+}
+
+// Replicated Properties
+void ADinnerOrDiner_UECharacter::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> & OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	//Replicate current health.
+	DOREPLIFETIME(ADinnerOrDiner_UECharacter, CurrentHealth);
+}
+
+void ADinnerOrDiner_UECharacter::OnRep_CurrentHealth()
+{
+	OnHealthUpdate();
+}
+
+void ADinnerOrDiner_UECharacter::OnHealthUpdate()
+{
+	//Client-specific functionality
+	if (IsLocallyControlled())
+	{
+
+		if (CurrentHealth <= 0)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Actor: %s have been slain."),*GetFName().ToString()));
+		}
+	}
+
+	//Server functionality
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Orange, FString::Printf(TEXT("Actor: %s has %f health remaining."), *GetFName().ToString(), CurrentHealth));
+	}
+
+	//Put any special functionality that should occur as a result of damage or death here
+}
+
+void ADinnerOrDiner_UECharacter::SetCurrentHealth(float healthValue)
+{
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		CurrentHealth = FMath::Clamp(healthValue, 0.f, MaxHealth);
+		OnHealthUpdate();
+	}
+}
+
+float ADinnerOrDiner_UECharacter::TakeDamage(float DamageTaken, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	float damageApplied = CurrentHealth - DamageTaken;
+	SetCurrentHealth(damageApplied);
+	return damageApplied;
+}
+
+void ADinnerOrDiner_UECharacter::StartFire()
+{
+	if (!bIsFiringWeapon)
+	{
+		bIsFiringWeapon = true;
+		UWorld* World = GetWorld();
+		World->GetTimerManager().SetTimer(FiringTimer, this, &ADinnerOrDiner_UECharacter::StopFire, FireRate, false);
+		HandleFire();
+	}
+}
+
+void ADinnerOrDiner_UECharacter::StopFire()
+{
+	bIsFiringWeapon = false;
+}
+
+void ADinnerOrDiner_UECharacter::HandleFire_Implementation()
+{
+	FVector spawnLocation = GetActorLocation() + ( GetControlRotation().Vector()  * 100.0f ) + (GetActorUpVector() * 50.0f);
+	FRotator spawnRotation = GetControlRotation();
+
+	FActorSpawnParameters spawnParameters;
+	spawnParameters.Instigator = GetInstigator();
+	spawnParameters.Owner = this;
+
+	AActorDamger* spawnedProjectile = GetWorld()->SpawnActor<AActorDamger>(spawnLocation, spawnRotation, spawnParameters);
 }

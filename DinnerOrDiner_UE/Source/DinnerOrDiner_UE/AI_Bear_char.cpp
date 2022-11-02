@@ -15,7 +15,8 @@ AAI_Bear_char::AAI_Bear_char()
 {
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
+	
+	bReplicates = true;
 
 }
 
@@ -30,13 +31,9 @@ void AAI_Bear_char::BeginPlay()
 	AI_speed =				350.0f;
 	AI_velocity =			FVector(0.0f, 0.0f, 0.0f);
 	AI_position =			GetActorLocation();
-	c_player =				Cast<ADinnerOrDiner_UECharacter>(
-								 UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));// get ref to the player
-
+	c_player =				Cast<ADinnerOrDiner_UECharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));// get ref to the player
+	
 	CollidedActor = new FHitResult();
-	
-	
-	
 }
 
 // Called every frame
@@ -46,38 +43,39 @@ void AAI_Bear_char::Tick(float DeltaTime)
 
 	PerformRaycast();
 
-	FVector Vecdistance = GetActorLocation() - c_player->GetActorLocation();
-	float distance = Vecdistance.Size();
-	if (distance <= AI_PawnSpotRadius)
+	for (ADinnerOrDiner_UECharacter* PlayerController : TActorRange<ADinnerOrDiner_UECharacter>(GetWorld()))
 	{
-		//isSeeking = true;
-		if (isColliding && !isSeeking)
+		FVector Vecdistance = GetActorLocation() - PlayerController->GetActorLocation();
+		float distance = Vecdistance.Size();
+		if (distance <= AI_PawnSpotRadius)
 		{
-			SeekPosition(DeltaTime);
-			isSeeking = false;
-		}
+			//isSeeking = true;
+			if (isColliding && !isSeeking)
+			{
+				SeekPosition(DeltaTime);
+				isSeeking = false;
+			}
 
-		if(isSeeking)
+			if(isSeeking)
+			{
+				SeekActor(DeltaTime, PlayerController);
+			}
+			
+			
+
+			GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("Chasing Player"));
+		}
+		else if (distance <= AI_SeeRadius)
 		{
-			SeekActor(DeltaTime, c_player);
+			GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Yellow, TEXT("I think I see Something?"));
 		}
-		
-		
-
-		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Green, TEXT("Chasing Player"));
-	}
-	else if (distance <= AI_SeeRadius)
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Yellow, TEXT("I think I see Something?"));
-	}
-	else if (distance > AI_PawnSpotRadius)
-	{
-		StopSeeking();
-		GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Red, TEXT("Waiting For EIS"));
-	}
-
+		else if (distance > AI_PawnSpotRadius)
+		{
+			StopSeeking();
+			GEngine->AddOnScreenDebugMessage(-1, 0.017f, FColor::Red, TEXT("Waiting For EIS"));
+		}
 	
-
+	}
 	
 	
 	
@@ -126,16 +124,18 @@ void AAI_Bear_char::SeekPosition(float time)
 
 void AAI_Bear_char::SeekActor(float time, AActor* targetActor_)
 {
-		
-	RotateTowards(targetActor_->GetActorLocation());
+	if (GetLocalRole() == ROLE_Authority)
+	{
+		RotateTowards(targetActor_->GetActorLocation());
 
-	// AI movement
-	AI_velocity = targetActor_->GetActorLocation() - GetActorLocation();// direction
-	AI_velocity.Normalize();// normalize it to prevent max clipping
-	AI_velocity *= AI_speed;// apply the speed to it so the AI moves relative to the set speed
-	AI_position += AI_velocity * time;// update the AIs position with the velocity and time
+		// AI movement
+		AI_velocity = targetActor_->GetActorLocation() - GetActorLocation();// direction
+		AI_velocity.Normalize();// normalize it to prevent max clipping
+		AI_velocity *= AI_speed;// apply the speed to it so the AI moves relative to the set speed
+		AI_position += AI_velocity * time;// update the AIs position with the velocity and time
 
-	SetActorLocation(AI_position);// set the current position to the new position
+		SetActorLocation(AI_position);// set the current position to the new position
+	}
 
 
 }
