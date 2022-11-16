@@ -73,3 +73,4 @@ Plugins/*/Intermediate/*
 # Cache files for the editor to use
 DinnerOrDiner_UE/DerivedDataCache/*
 DinnerOrDiner_UE/Plugins/Developer/RiderLink/*
+DinnerOrDiner_UE/LunachGame.bat
